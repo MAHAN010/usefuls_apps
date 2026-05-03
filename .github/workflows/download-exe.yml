@@ -1,0 +1,55 @@
+name: 📦 Download Apps and Build Archive
+
+on:
+  workflow_dispatch:          # اجرای دستی از تب Actions
+  push:
+    paths:
+      - 'apps_config.json'    # هر وقت فایل کانفیگ عوض شد، خودکار اجرا شه (اختیاری)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🗂️ Create base apps folder
+        run: mkdir -p apps
+
+      - name: 📋 Parse config and download files
+        run: |
+          # خواندن JSON و پردازش
+          jq -c '.[]' apps_config.json | while read -r app; do
+            app_name=$(echo "$app" | jq -r '.name')
+            echo "=== Processing: $app_name ==="
+            
+            # ساخت پوشه مخصوص برنامه داخل apps
+            app_dir="apps/$app_name"
+            mkdir -p "$app_dir"
+            
+            # حلقه روی لینک‌های دانلود این برنامه
+            echo "$app" | jq -c '.downloads[]' | while read -r dl; do
+              url=$(echo "$dl" | jq -r '.url')
+              filename=$(echo "$dl" | jq -r '.filename // empty')
+              
+              # اگر نام فایل داده نشده، از URL استخراج کن
+              if [ -z "$filename" ]; then
+                filename=$(basename "$url" | cut -d'?' -f1)
+              fi
+              
+              echo "  ⬇️ Downloading $filename from $url"
+              # curl با دنبال کردن redirectها و ذخیره در مسیر مقصد
+              curl -L --fail --show-error -o "$app_dir/$filename" "$url" || {
+                echo "  ❌ Failed to download $filename" >> /dev/stderr
+              }
+            done
+            
+            echo "Files in $app_dir:"
+            ls -l "$app_dir"
+          done
+
+      - name: 📤 Upload apps folder as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apps-collection
+          path: apps/
