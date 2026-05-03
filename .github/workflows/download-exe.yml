@@ -26,7 +26,6 @@ jobs:
 
       - name: 🚀 Super‑fast download with aria2
         run: |
-          # تابع دانلود فایل
           download_file() {
             local url="$1"
             local dest="$2"
@@ -37,23 +36,26 @@ jobs:
             }
           }
 
-          # خواندن JSON
-          jq -c '.[]' apps_config.json | while read -r app; do
+          # خواندن لیست برنامه‌ها (بدون pipe!)
+          while read -r app; do
             app_name=$(echo "$app" | jq -r '.name')
             app_dir="apps/$app_name"
             mkdir -p "$app_dir"
 
             echo "=== $app_name ==="
-            echo "$app" | jq -c '.downloads[]' | while read -r dl; do
+
+            # استخراج دانلودهای یک برنامه و اجرای هم‌زمان
+            while read -r dl; do
               url=$(echo "$dl" | jq -r '.url')
               filename=$(echo "$dl" | jq -r '.filename // empty')
               [ -z "$filename" ] && filename=$(basename "$url" | cut -d'?' -f1)
-              
               download_file "$url" "$app_dir/$filename" &
-            done
-            wait
+            done < <(echo "$app" | jq -c '.downloads[]')
+
+            wait  # حالا اینجا واقعاً صبر می‌کنه!
+            echo "✅ Finished downloading $app_name"
             ls -l "$app_dir"
-          done
+          done < <(jq -c '.[]' apps_config.json)
 
       - name: 📤 Commit and push to repository
         run: |
