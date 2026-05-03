@@ -1,17 +1,22 @@
-name: 📦 Download Apps with High Speed
+name: 📦 Update Apps Folder in Repo
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # اجرای دستی
   push:
     paths:
-      - 'apps_config.json'
+      - 'apps_config.json'    # هر وقت فایل کانفیگ تغییر کنه
 
 jobs:
-  build:
+  update-apps:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write         # اجازه push به مخزن
+
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true   # از توکن پیش‌فرض گیت‌هاب استفاده کنه
 
       - name: 🧰 Install aria2
         run: sudo apt-get update && sudo apt-get install -y aria2
@@ -19,43 +24,47 @@ jobs:
       - name: 🗂️ Create base apps folder
         run: mkdir -p apps
 
-      - name: 🚀 Fast parallel download using aria2c
+      - name: 🚀 Super‑fast download with aria2
         run: |
-          # تابع دانلود یک فایل با aria2
+          # تابع دانلود فایل
           download_file() {
             local url="$1"
             local dest="$2"
             echo "⬇️ Downloading: $(basename "$dest")"
-            # ۱۶ اتصال هم‌زمان، ادامه‌ی دانلود نیمه‌کاره، ۵ بار تلاش مجدد
-            aria2c -x 16 -s 16 --continue=true --max-tries=5 --dir="$(dirname "$dest")" --out="$(basename "$dest")" "$url" || {
-              echo "❌ Failed: $url" >> /dev/stderr
+            aria2c -x 16 -s 16 --continue --max-tries=5 \
+              --dir="$(dirname "$dest")" --out="$(basename "$dest")" "$url" || {
+              echo "❌ Failed: $url"
             }
           }
 
-          # پردازش فایل JSON
+          # خواندن JSON
           jq -c '.[]' apps_config.json | while read -r app; do
             app_name=$(echo "$app" | jq -r '.name')
             app_dir="apps/$app_name"
             mkdir -p "$app_dir"
 
-            # استخراج همهٔ دانلودهای این برنامه و اجرای هم‌زمان آن‌ها
+            echo "=== $app_name ==="
             echo "$app" | jq -c '.downloads[]' | while read -r dl; do
               url=$(echo "$dl" | jq -r '.url')
               filename=$(echo "$dl" | jq -r '.filename // empty')
               [ -z "$filename" ] && filename=$(basename "$url" | cut -d'?' -f1)
               
-              # اجرای تابع دانلود در پس‌زمینه (موازی)
               download_file "$url" "$app_dir/$filename" &
             done
-            
-            # صبر کن تا همه دانلودهای این برنامه تموم بشن
             wait
-            echo "✅ Finished downloading $app_name"
             ls -l "$app_dir"
           done
 
-      - name: 📤 Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: apps-collection
-          path: apps/
+      - name: 📤 Commit and push to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/
+          
+          # فقط اگر تغییری وجود داشت commit کن
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "⬆️ Update apps folder [skip ci]"
+            git push
+          fi
