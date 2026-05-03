@@ -1,10 +1,10 @@
-name: 📦 Download Apps and Build Archive
+name: 📦 Download Apps with High Speed
 
 on:
-  workflow_dispatch:          # اجرای دستی از تب Actions
+  workflow_dispatch:
   push:
     paths:
-      - 'apps_config.json'    # هر وقت فایل کانفیگ عوض شد، خودکار اجرا شه (اختیاری)
+      - 'apps_config.json'
 
 jobs:
   build:
@@ -13,42 +13,48 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
+      - name: 🧰 Install aria2
+        run: sudo apt-get update && sudo apt-get install -y aria2
+
       - name: 🗂️ Create base apps folder
         run: mkdir -p apps
 
-      - name: 📋 Parse config and download files
+      - name: 🚀 Fast parallel download using aria2c
         run: |
-          # خواندن JSON و پردازش
+          # تابع دانلود یک فایل با aria2
+          download_file() {
+            local url="$1"
+            local dest="$2"
+            echo "⬇️ Downloading: $(basename "$dest")"
+            # ۱۶ اتصال هم‌زمان، ادامه‌ی دانلود نیمه‌کاره، ۵ بار تلاش مجدد
+            aria2c -x 16 -s 16 --continue=true --max-tries=5 --dir="$(dirname "$dest")" --out="$(basename "$dest")" "$url" || {
+              echo "❌ Failed: $url" >> /dev/stderr
+            }
+          }
+
+          # پردازش فایل JSON
           jq -c '.[]' apps_config.json | while read -r app; do
             app_name=$(echo "$app" | jq -r '.name')
-            echo "=== Processing: $app_name ==="
-            
-            # ساخت پوشه مخصوص برنامه داخل apps
             app_dir="apps/$app_name"
             mkdir -p "$app_dir"
-            
-            # حلقه روی لینک‌های دانلود این برنامه
+
+            # استخراج همهٔ دانلودهای این برنامه و اجرای هم‌زمان آن‌ها
             echo "$app" | jq -c '.downloads[]' | while read -r dl; do
               url=$(echo "$dl" | jq -r '.url')
               filename=$(echo "$dl" | jq -r '.filename // empty')
+              [ -z "$filename" ] && filename=$(basename "$url" | cut -d'?' -f1)
               
-              # اگر نام فایل داده نشده، از URL استخراج کن
-              if [ -z "$filename" ]; then
-                filename=$(basename "$url" | cut -d'?' -f1)
-              fi
-              
-              echo "  ⬇️ Downloading $filename from $url"
-              # curl با دنبال کردن redirectها و ذخیره در مسیر مقصد
-              curl -L --fail --show-error -o "$app_dir/$filename" "$url" || {
-                echo "  ❌ Failed to download $filename" >> /dev/stderr
-              }
+              # اجرای تابع دانلود در پس‌زمینه (موازی)
+              download_file "$url" "$app_dir/$filename" &
             done
             
-            echo "Files in $app_dir:"
+            # صبر کن تا همه دانلودهای این برنامه تموم بشن
+            wait
+            echo "✅ Finished downloading $app_name"
             ls -l "$app_dir"
           done
 
-      - name: 📤 Upload apps folder as artifact
+      - name: 📤 Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: apps-collection
