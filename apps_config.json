@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Firefox",
+    "downloads": [
+      {
+        "platform": "windows",
+        "url": "https://download.mozilla.org/?product=firefox-latest&os=win&lang=en-US",
+        "filename": "Firefox_Installer.exe"
+      },
+      {
+        "platform": "macos",
+        "url": "https://download.mozilla.org/?product=firefox-latest&os=osx&lang=en-US",
+        "filename": "Firefox.dmg"
+      },
+      {
+        "platform": "linux",
+        "url": "https://download.mozilla.org/?product=firefox-latest&os=linux64&lang=en-US",
+        "filename": "firefox.tar.bz2"
+      }
+    ]
+  },
+  {
+    "name": "VLC",
+    "downloads": [
+      {
+        "platform": "windows",
+        "url": "https://get.videolan.org/vlc/3.0.18/win64/vlc-3.0.18-win64.exe",
+        "filename": "vlc-setup.exe"
+      },
+      {
+        "platform": "macos",
+        "url": "https://get.videolan.org/vlc/3.0.18/macosx/vlc-3.0.18-intel64.dmg",
+        "filename": "vlc.dmg"
+      }
+    ]
+  }
+]
